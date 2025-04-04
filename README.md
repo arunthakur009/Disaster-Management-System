@@ -54,5 +54,5 @@ Most disaster-related deaths do not occur during the disaster itself but **after
 
 ### 1️⃣ Clone the Repository  
 ```bash
-git clone https://github.com/your-username/Disaster-Management-System.git
+git clone https://github.com/arunthakur009/Disaster-Management-System.git
 cd Disaster-Management-System
