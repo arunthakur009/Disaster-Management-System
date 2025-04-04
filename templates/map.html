@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disaster Map - Disaster Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Confirmation Cards Styling */
+        .confirmation-card {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .card-content {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .confirmation-message {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .sos-message {
+            color: #d9534f;
+            font-size: 24px;
+        }
+
+        .filter-message {
+            color: #5bc0de;
+        }
+
+        .report-message {
+            color: #5cb85c;
+        }
+
+        .status-indicator {
+            position: relative;
+            width: 30px;
+            height: 30px;
+            margin: 0 auto 10px;
+        }
+
+        .pulse-dot {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 7px;
+            left: 7px;
+            border-radius: 50%;
+        }
+
+        .pulse-ring {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 3px solid;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        .sos-status .pulse-dot {
+            background-color: #d9534f;
+        }
+
+        .sos-status .pulse-ring {
+            border-color: #d9534f;
+        }
+
+        .filter-status .pulse-dot {
+            background-color: #5bc0de;
+        }
+
+        .filter-status .pulse-ring {
+            border-color: #5bc0de;
+        }
+
+        .report-status .pulse-dot {
+            background-color: #5cb85c;
+        }
+
+        .report-status .pulse-ring {
+            border-color: #5cb85c;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(0.5);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1.2);
+                opacity: 0;
+            }
+        }
+
+        .summary-list {
+            text-align: left;
+            margin: 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+
+        .summary-list li {
+            margin-bottom: 5px;
+        }
+
+        .card-actions {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><i class="fas fa-shield-alt"></i> Disaster Management Map</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}"><i class="fas fa-home"></i> Home</a></li>
+                <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+                <li class="active"><a href="{{ url_for('map_view') }}"><i class="fas fa-map-marked-alt"></i> Map</a></li>
+                <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main class="map-container">
+        <div id="map"></div>
+    
+        <div class="map-controls">
+            <div class="control-panel">
+                <h3><i class="fas fa-filter"></i> Filters</h3>
+                <div class="filter-group">
+                    <label for="incident-type">Incident Type:</label>
+                    <select id="incident-type">
+                        <option value="">All Types</option>
+                        <option value="flood">Flood</option>
+                        <option value="fire">Fire</option>
+                        <option value="collapse">Building Collapse</option>
+                        <option value="roadblock">Roadblock</option>
+                        <option value="medical">Medical Emergency</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="urgency">Urgency:</label>
+                    <select id="urgency">
+                        <option value="">All</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="time-reported">Time Reported:</label>
+                    <select id="time-reported">
+                        <option value="">All Time</option>
+                        <option value="1h">Last Hour</option>
+                        <option value="6h">Last 6 Hours</option>
+                        <option value="24h">Last 24 Hours</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label>Show Resources:</label>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" value="shelter" checked> Shelters
+                        </label>
+                        <label>
+                            <input type="checkbox" value="hospital" checked> Hospitals
+                        </label>
+                        <label>
+                            <input type="checkbox" value="food" checked> Food
+                        </label>
+                        <label>
+                            <input type="checkbox" value="water" checked> Water
+                        </label>
+                    </div>
+                </div>
+                
+                <button id="apply-filters" class="btn primary">Apply Filters</button>
+            </div>
+            
+            <div class="report-panel">
+                <h3><i class="fas fa-exclamation-triangle"></i> Report Incident</h3>
+                <form id="incident-form">
+                    <div class="form-group">
+                        <label for="report-type">Type:</label>
+                        <select id="report-type" required>
+                            <option value="flood">Flood</option>
+                            <option value="fire">Fire</option>
+                            <option value="collapse">Building Collapse</option>
+                            <option value="roadblock">Roadblock</option>
+                            <option value="medical">Medical Emergency</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="report-description">Description:</label>
+                        <textarea id="report-description" placeholder="Describe the situation..." required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="report-urgency">Urgency:</label>
+                        <select id="report-urgency">
+                            <option value="high">High</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="low">Low</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="report-image">Upload Image:</label>
+                        <input type="file" id="report-image" accept="image/*">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="report-audio">Record Voice Note:</label>
+                        <div class="audio-controls">
+                            <button type="button" id="start-recording" class="btn secondary">
+                                <i class="fas fa-microphone"></i> Start
+                            </button>
+                            <button type="button" id="stop-recording" class="btn secondary" disabled>
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                            <audio id="audio-preview" controls style="display: none;"></audio>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Location:</label>
+                        <p id="selected-location"><i class="fas fa-map-pin"></i> Click on map to select location</p>
+                    </div>
+                    
+                    <button type="submit" id="submit-report" class="btn primary" disabled>Submit Report</button>
+                </form>
+                
+                <div class="divider"></div>
+                
+                <div class="sos-section">
+                    <h3><i class="fas fa-radiation"></i> Emergency SOS</h3>
+                    <p>Press the button below to send an SOS alert with your current location:</p>
+                    <button id="sos-button" class="btn danger">
+                        <i class="fas fa-exclamation-triangle"></i> SEND SOS
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SOS Confirmation Card -->
+        <div id="sos-confirmation" class="confirmation-card">
+            <div class="card-content">
+                <div class="status-indicator sos-status">
+                    <div class="pulse-ring"></div>
+                    <div class="pulse-dot"></div>
+                </div>
+                <h3><i class="fas fa-ambulance"></i> Emergency Alert Sent</h3>
+                <p class="confirmation-message sos-message">Help is on the way!</p>
+                <p>Your location has been shared with nearby emergency responders.</p>
+                <p><strong>ETA:</strong> <span id="sos-eta">4-7 minutes</span></p>
+                <div class="card-actions">
+                    <button id="close-sos-card" class="btn secondary">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Applied Confirmation Card -->
+        <div id="filter-confirmation" class="confirmation-card">
+            <div class="card-content">
+                <div class="status-indicator filter-status">
+                    <div class="pulse-ring"></div>
+                    <div class="pulse-dot"></div>
+                </div>
+                <h3><i class="fas fa-filter"></i> Filters Applied</h3>
+                <p class="confirmation-message filter-message">Map Updated</p>
+                <div class="filter-summary">
+                    <p>Your selected filters:</p>
+                    <ul class="summary-list" id="filter-summary-list">
+                        <!-- Will be populated dynamically -->
+                    </ul>
+                    <p><strong>Results:</strong> <span id="filter-result-count">32</span> incidents found</p>
+                </div>
+                <div class="card-actions">
+                    <button id="close-filter-card" class="btn secondary">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Submitted Confirmation Card -->
+        <div id="report-confirmation" class="confirmation-card">
+            <div class="card-content">
+                <div class="status-indicator report-status">
+                    <div class="pulse-ring"></div>
+                    <div class="pulse-dot"></div>
+                </div>
+                <h3><i class="fas fa-check-circle"></i> Report Submitted</h3>
+                <p class="confirmation-message report-message">Thank you for your report!</p>
+                <div class="report-summary">
+                    <p>Report details:</p>
+                    <ul class="summary-list" id="report-summary-list">
+                        <!-- Will be populated dynamically -->
+                    </ul>
+                    <p>Your report has been submitted to the emergency team and nearby responders have been notified.</p>
+                </div>
+                <div class="card-actions">
+                    <button id="close-report-card" class="btn secondary">
+                        <i class="fas fa-times"></i> Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <template id="incident-popup-template">
+        <div class="incident-popup">
+            <h3>{type}</h3>
+            <p class="description">{description}</p>
+            <div class="meta-info">
+                <p><strong>Reported:</strong> {time}</p>
+                <p><strong>Urgency:</strong> <span class="urgency-{urgency}">{urgency}</span></p>
+                <p><strong>Verified by:</strong> {verification_count} users</p>
+            </div>
+            <div class="popup-actions">
+                <button class="btn secondary verify-button" data-id="{id}">
+                    <i class="fas fa-check"></i> Verify
+                </button>
+                <button class="btn primary directions-button" data-lat="{latitude}" data-lng="{longitude}">
+                    <i class="fas fa-directions"></i> Directions
+                </button>
+            </div>
+        </div>
+    </template>
+    
+    <template id="resource-popup-template">
+        <div class="resource-popup">
+            <h3>{name}</h3>
+            <p class="description">{description}</p>
+            <div class="meta-info">
+                <p><strong>Type:</strong> {type}</p>
+                <p><strong>Contact:</strong> {contact}</p>
+                <p><strong>Capacity:</strong> {capacity}</p>
+                <p><strong>Status:</strong> <span class="status-{status}">{status}</span></p>
+            </div>
+            <button class="btn primary directions-button" data-lat="{latitude}" data-lng="{longitude}">
+                <i class="fas fa-directions"></i> Directions
+            </button>
+        </div>
+    </template>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='js/map.js') }}"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // SOS button functionality
+            const sosButton = document.getElementById('sos-button');
+            const sosConfirmation = document.getElementById('sos-confirmation');
+            const closeSosCard = document.getElementById('close-sos-card');
+            
+            sosButton.addEventListener('click', function() {
+                sosConfirmation.style.display = 'flex';
+                // Here you would also send the actual SOS alert to your backend
+            });
+            
+            closeSosCard.addEventListener('click', function() {
+                sosConfirmation.style.display = 'none';
+            });
+            
+            // Filter application functionality
+            const applyFiltersButton = document.getElementById('apply-filters');
+            const filterConfirmation = document.getElementById('filter-confirmation');
+            const closeFilterCard = document.getElementById('close-filter-card');
+            const filterSummaryList = document.getElementById('filter-summary-list');
+            
+            applyFiltersButton.addEventListener('click', function() {
+                // Get selected filter values
+                const incidentType = document.getElementById('incident-type').value;
+                const urgency = document.getElementById('urgency').value;
+                const timeReported = document.getElementById('time-reported').value;
+                
+                // Get checked resources
+                const resources = [];
+                document.querySelectorAll('.checkbox-group input:checked').forEach(checkbox => {
+                    resources.push(checkbox.value);
+                });
+                
+                // Display filter summary
+                filterSummaryList.innerHTML = '';
+                
+                if (incidentType) {
+                    const listItem = document.createElement('li');
+                    listItem.innerHTML = `<strong>Incident Type:</strong> ${incidentType.charAt(0).toUpperCase() + incidentType.slice(1)}`;
+                    filterSummaryList.appendChild(listItem);
+                }
+                
+                if (urgency) {
+                    const listItem = document.createElement('li');
+                    listItem.innerHTML = `<strong>Urgency:</strong> ${urgency.charAt(0).toUpperCase() + urgency.slice(1)}`;
+                    filterSummaryList.appendChild(listItem);
+                }
+                
+                if (timeReported) {
+                    const listItem = document.createElement('li');
+                    let timeText;
+                    switch(timeReported) {
+                        case '1h': timeText = 'Last Hour'; break;
+                        case '6h': timeText = 'Last 6 Hours'; break;
+                        case '24h': timeText = 'Last 24 Hours'; break;
+                        default: timeText = timeReported;
+                    }
+                    listItem.innerHTML = `<strong>Time Reported:</strong> ${timeText}`;
+                    filterSummaryList.appendChild(listItem);
+                }
+                
+                if (resources.length > 0) {
+                    const listItem = document.createElement('li');
+                    listItem.innerHTML = `<strong>Resources:</strong> ${resources.join(', ')}`;
+                    filterSummaryList.appendChild(listItem);
+                }
+                
+                // If no filters applied, show message
+                if (filterSummaryList.children.length === 0) {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = 'No filters applied (showing all)';
+                    filterSummaryList.appendChild(listItem);
+                }
+                
+                // Show the confirmation card
+                filterConfirmation.style.display = 'flex';
+                
+                // In a real application, you would apply the filters and update the map here
+                // Then update the filter-result-count with the actual count
+            });
+            
+            closeFilterCard.addEventListener('click', function() {
+                filterConfirmation.style.display = 'none';
+            });
+            
+            // Report submission functionality
+            const reportForm = document.getElementById('incident-form');
+            const reportConfirmation = document.getElementById('report-confirmation');
+            const closeReportCard = document.getElementById('close-report-card');
+            const reportSummaryList = document.getElementById('report-summary-list');
+            
+            reportForm.addEventListener('submit', function(e) {
+                e.preventDefault(); // Prevent actual form submission
+                
+                // Get report details
+                const reportType = document.getElementById('report-type').value;
+                const reportDescription = document.getElementById('report-description').value;
+                const reportUrgency = document.getElementById('report-urgency').value;
+                
+                // Display report summary
+                reportSummaryList.innerHTML = '';
+                
+                const typeItem = document.createElement('li');
+                typeItem.innerHTML = `<strong>Type:</strong> ${reportType.charAt(0).toUpperCase() + reportType.slice(1)}`;
+                reportSummaryList.appendChild(typeItem);
+                
+                const urgencyItem = document.createElement('li');
+                urgencyItem.innerHTML = `<strong>Urgency:</strong> ${reportUrgency.charAt(0).toUpperCase() + reportUrgency.slice(1)}`;
+                reportSummaryList.appendChild(urgencyItem);
+                
+                const descriptionItem = document.createElement('li');
+                const shortDescription = reportDescription.length > 50 ? 
+                    reportDescription.substring(0, 50) + '...' : 
+                    reportDescription;
+                descriptionItem.innerHTML = `<strong>Description:</strong> ${shortDescription}`;
+                reportSummaryList.appendChild(descriptionItem);
+                
+                const locationItem = document.createElement('li');
+                locationItem.innerHTML = '<strong>Location:</strong> Selected on map';
+                reportSummaryList.appendChild(locationItem);
+                
+                const referenceItem = document.createElement('li');
+                // Generate a random reference ID
+                const referenceId = 'INC-' + Math.floor(100000 + Math.random() * 900000);
+                referenceItem.innerHTML = `<strong>Reference ID:</strong> ${referenceId}`;
+                reportSummaryList.appendChild(referenceItem);
+                
+                // Show the confirmation card
+                reportConfirmation.style.display = 'flex';
+                
+                // In a real application, you would submit the report to your backend here
+            });
+            
+            closeReportCard.addEventListener('click', function() {
+                reportConfirmation.style.display = 'none';
+                // Optionally reset the form
+                // reportForm.reset();
+            });
+
+            // For demonstration purposes, enable the submit button that would normally
+            // only be enabled once a location is selected on the map
+            document.getElementById('submit-report').disabled = false;
+        });
+    </script>
+</body>
+</html>
