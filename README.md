@@ -35,7 +35,6 @@ Most disaster-related deaths do not occur during the disaster itself but **after
 ✅ **Resource Tracking** – View the availability of **food, water, and medical aid** in real-time.  
 ✅ **Interactive Map** – Find the nearest **shelter locations and safe routes**.  
 ✅ **Community Chat System** – Communicate with other survivors and volunteers.  
-✅ **Automated SOS Detection** – Uses AI to scan social media for emergency situations.  
 ✅ **Volunteer Coordination** – Helps relief workers track and allocate resources.  
 ✅ **Drone Integration (Future Scope)** – Automated drones for **damage assessment and supply delivery**.  
 
