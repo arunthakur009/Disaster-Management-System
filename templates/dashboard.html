@@ -1,0 +1,1376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Disaster Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* Notification styling */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 4px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0.95;
+            transition: opacity 0.5s ease-in-out;
+            font-weight: bold;
+        }
+        
+        .notification p {
+            margin: 0;
+            font-size: 16px;
+        }
+        
+        .notification.fade-out {
+            opacity: 0;
+        }
+        
+        .incident-item {
+            animation: highlight 2s ease-in-out;
+        }
+        
+        @keyframes highlight {
+            0% { background-color: rgba(76, 175, 80, 0.3); }
+            100% { background-color: transparent; }
+        }
+        
+        /* Verification notification styling */
+        .notification.verification {
+            background-color: #3498db; /* Blue for verifications */
+        }
+        
+        /* Connection status styling */
+        #connection-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        #connection-status:before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        #connection-status.connected {
+            color: #2ecc71;
+        }
+        
+        #connection-status.connected:before {
+            background-color: #2ecc71;
+        }
+        
+        #connection-status.disconnected {
+            color: #e74c3c;
+        }
+        
+        #connection-status.disconnected:before {
+            background-color: #e74c3c;
+        }
+        
+        /* Loading indicator */
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 5px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Loading indicator for content */
+        .loading-indicator {
+            padding: 20px;
+            text-align: center;
+            color: #777;
+            font-style: italic;
+            background-color: rgba(0,0,0,0.05);
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        
+        /* Added animation for new content */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .new-content {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        /* Error state styling */
+        .error-state {
+            padding: 15px;
+            background-color: rgba(231, 76, 60, 0.1);
+            border-left: 4px solid #e74c3c;
+            color: #c0392b;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .notification.error {
+            background-color: #e74c3c;
+        }
+        
+        /* Small button style */
+        .btn.small {
+            padding: 5px 10px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        /* Timestamp style */
+        .timestamp {
+            color: #777;
+            font-size: 11px;
+            display: block;
+            margin-top: 5px;
+        }
+        
+        /* Shelter section styling */
+        .shelter-list {
+            margin-top: 15px;
+        }
+        
+        .shelter-item {
+            background-color: #fff;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            padding: 15px;
+            transition: transform 0.2s;
+        }
+        
+        .shelter-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 3px 5px rgba(0,0,0,0.15);
+        }
+        
+        .shelter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .shelter-name {
+            font-weight: bold;
+            font-size: 16px;
+            margin: 0;
+            color: #333;
+        }
+        
+        .shelter-status {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .status-operational {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .status-limited {
+            background-color: #f39c12;
+            color: white;
+        }
+        
+        .status-full {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .shelter-details {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        
+        .shelter-contact {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .shelter-resources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .resource-tag {
+            background-color: #f1f1f1;
+            border-radius: 12px;
+            padding: 3px 8px;
+            font-size: 12px;
+            color: #555;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .resource-tag .quantity {
+            font-weight: bold;
+            margin-left: 3px;
+        }
+        
+        .shelter-location {
+            font-size: 12px;
+            color: #888;
+            margin-top: 8px;
+        }
+        
+        /* Text status colors */
+        .text-success {
+            color: #2ecc71 !important;
+        }
+        
+        .text-warning {
+            color: #f39c12 !important;
+        }
+        
+        .text-danger {
+            color: #e74c3c !important;
+        }
+    </style>
+</head>
+   
+<body>
+    <header>
+        <h1><i class="fas fa-shield-alt"></i> Disaster Management System</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}"><i class="fas fa-home"></i> Home</a></li>
+                <li class="active"><a href="{{ url_for('dashboard') }}"><i class="fas fa-chart-line"></i> Dashboard</a></li>
+                <li><a href="{{ url_for('map_view') }}"><i class="fas fa-map-marked-alt"></i> Map</a></li>
+                <li><a href="{{ url_for('logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+            </ul>
+        </nav>
+    </header>
+    
+    <main class="dashboard-container">
+        <div class="dashboard-header">
+            <h2>Disaster Response Dashboard</h2>
+            <button id="refresh-dashboard" class="btn secondary" style="margin-left: auto; margin-right: 20px;">
+                <i class="fas fa-sync-alt"></i> Refresh Data
+            </button>
+            <div id="connection-status" class="disconnected" style="margin-right: 20px; font-size: 12px;">Disconnected</div>
+            <div class="status-overview">
+                <div class="status-card">
+                    <h3>Active Incidents</h3>
+                    <div class="status-count"><i class="fas fa-exclamation-triangle"></i> <span id="active-incidents-count">5</span></div>
+                </div>
+                <div class="status-card">
+                    <h3>SOS Alerts</h3>
+                    <div class="status-count"><i class="fas fa-bell"></i> <span id="active-sos-count">2</span></div>
+                </div>
+                <div class="status-card">
+                    <h3>Available Resources</h3>
+                    <div class="status-count"><i class="fas fa-boxes"></i> <span id="resource-count">12</span></div>
+                </div>
+                <div class="status-card">
+                    <h3>Shelter Capacity</h3>
+                    <div class="status-count"><i class="fas fa-bed"></i> <span id="shelter-capacity">0/0</span></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="dashboard-content">
+            <div class="dashboard-panel">
+                <h3><i class="fas fa-history"></i> Recent Incidents</h3>
+                <div class="incident-list" id="recent-incidents">
+                    <div class="incident-item">
+                        <div class="incident-info">
+                            <h4>Flood</h4>
+                            <p>Riverbend Area</p>
+                        </div>
+                        <span class="incident-status status-ongoing">Ongoing</span>
+                    </div>
+                    <div class="incident-item">
+                        <div class="incident-info">
+                            <h4>Landslide</h4>
+                            <p>Hilltown</p>
+                        </div>
+                        <span class="incident-status status-cleared">Cleared</span>
+                    </div>
+                    <div class="incident-item">
+                        <div class="incident-info">
+                            <h4>Cyclone Risk</h4>
+                            <p>Zone 7</p>
+                        </div>
+                        <span class="incident-status status-expected">Expected</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard-panel">
+                <h3><i class="fas fa-radiation"></i> Active SOS Alerts</h3>
+                <div class="sos-list" id="active-sos">
+                    <div class="sos-item">
+                        <h4><i class="fas fa-exclamation-circle"></i> John Doe</h4>
+                        <p>Trapped in flood</p>
+                        <p class="sos-location"><i class="fas fa-map-marker-alt"></i> District 4</p>
+                    </div>
+                    <div class="sos-item">
+                        <h4><i class="fas fa-exclamation-circle"></i> Jane Smith</h4>
+                        <p>House collapsed</p>
+                        <p class="sos-location"><i class="fas fa-map-marker-alt"></i> Hilltown</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dashboard-panel">
+                <h3><i class="fas fa-broadcast-tower"></i> Emergency Broadcasts</h3>
+                <div class="broadcast-list" id="broadcasts">
+                    <div class="broadcast-message">
+                        ⚠️ Heavy rainfall expected in Mountain Region. Stay indoors.
+                    </div>
+                    <div class="broadcast-message">
+                        🚑 Emergency shelters open in City Center.
+                    </div>
+                    <div class="broadcast-message">
+                        🌊 Flash flood warning issued for Riverbend area.
+                    </div>
+                </div>
+                
+                <div class="broadcast-form">
+                    <h4>Send Emergency Broadcast</h4>
+                    <form id="broadcast-form">
+                        <div class="form-group">
+                            <label for="broadcast-message">Message:</label>
+                            <textarea id="broadcast-message" placeholder="Enter emergency broadcast message..." required></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="broadcast-radius">Radius (km):</label>
+                            <input type="number" id="broadcast-radius" value="5" min="1" max="50">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Target Location:</label>
+                            <div class="location-options">
+                                <label>
+                                    <input type="radio" name="location-type" value="current" checked> Use My Location
+                                </label>
+                                <label>
+                                    <input type="radio" name="location-type" value="custom"> Custom Location
+                                </label>
+                            </div>
+                            <div id="custom-location-fields" style="display: none;">
+                                <input type="text" id="broadcast-latitude" placeholder="Latitude">
+                                <input type="text" id="broadcast-longitude" placeholder="Longitude">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn danger">Send Broadcast</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div class="dashboard-panel shelter-management">
+            <h3><i class="fas fa-home"></i> Emergency Shelters</h3>
+            <div class="shelter-list" id="shelters">
+                <div class="loading-indicator">Loading shelters...</div>
+                </div>
+            <div class="shelter-actions" style="text-align: right; margin-top: 10px;">
+                <button onclick="fetchAndUpdateShelters()" class="btn secondary small">
+                    <i class="fas fa-sync-alt"></i> Refresh Shelters
+                </button>
+            </div>
+        </div>
+    </main>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        // DOM Elements
+        const activeIncidentsCount = document.getElementById('active-incidents-count');
+        const activeSosCount = document.getElementById('active-sos-count');
+        const resourceCount = document.getElementById('resource-count');
+        const recentIncidents = document.getElementById('recent-incidents');
+        const activeSos = document.getElementById('active-sos');
+        const broadcasts = document.getElementById('broadcasts');
+        const shelters = document.getElementById('shelters');
+        
+        // Add debug functionality to help troubleshoot
+        let debugMode = false;
+        
+        // Function to toggle debug mode
+        function toggleDebugMode() {
+            debugMode = !debugMode;
+            console.log(`Debug mode ${debugMode ? 'enabled' : 'disabled'}`);
+            
+            // Update UI to show debug status
+            const debugButton = document.getElementById('debug-toggle');
+            if (debugButton) {
+                debugButton.textContent = debugMode ? 'Disable Debug' : 'Enable Debug';
+                debugButton.classList.toggle('active', debugMode);
+            }
+            
+            // Log useful debug info if enabled
+            if (debugMode) {
+                console.log('Current incidents in DOM:', recentIncidents.children.length);
+                console.log('Socket.IO connected:', socket.connected);
+                console.log('Local storage:', localStorage);
+                console.log('Session storage:', sessionStorage);
+            }
+            
+            return false; // Prevent default link action
+        }
+        
+        // Add a small debug button to the page (only visible in development)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            const debugButton = document.createElement('a');
+            debugButton.id = 'debug-toggle';
+            debugButton.href = '#';
+            debugButton.textContent = 'Enable Debug';
+            debugButton.className = 'debug-toggle';
+            debugButton.style.position = 'fixed';
+            debugButton.style.bottom = '10px';
+            debugButton.style.right = '10px';
+            debugButton.style.background = '#333';
+            debugButton.style.color = '#fff';
+            debugButton.style.padding = '5px 10px';
+            debugButton.style.fontSize = '12px';
+            debugButton.style.zIndex = '9999';
+            debugButton.style.textDecoration = 'none';
+            debugButton.style.borderRadius = '4px';
+            debugButton.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleDebugMode();
+            });
+            
+            document.body.appendChild(debugButton);
+        }
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Dashboard initializing...');
+            
+            // Set up refresh button
+            const refreshButton = document.getElementById('refresh-dashboard');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', fetchAndUpdateDashboard);
+            }
+            
+            // Set up broadcast form submission
+            const broadcastForm = document.getElementById('broadcast-form');
+            if (broadcastForm) {
+                broadcastForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const message = document.getElementById('broadcast-message').value;
+                    const radius = document.getElementById('broadcast-radius').value;
+                    const locationType = document.querySelector('input[name="location-type"]:checked').value;
+                    
+                    let latitude, longitude;
+                    
+                    if (locationType === 'current') {
+                        // Use default or center coordinates for now
+                        latitude = 35.6895;
+                        longitude = 139.6917;
+                        
+                        // Try to get user's location if available and permitted
+                        if (navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                                (position) => {
+                                    latitude = position.coords.latitude;
+                                    longitude = position.coords.longitude;
+                                    submitBroadcast(message, radius, latitude, longitude);
+                                },
+                                (error) => {
+                                    console.error('Geolocation error:', error);
+                                    submitBroadcast(message, radius, latitude, longitude);
+                                }
+                            );
+                        } else {
+                            submitBroadcast(message, radius, latitude, longitude);
+                        }
+                    } else {
+                        // Use custom location
+                        latitude = document.getElementById('broadcast-latitude').value;
+                        longitude = document.getElementById('broadcast-longitude').value;
+                        submitBroadcast(message, radius, latitude, longitude);
+                    }
+                });
+                
+                // Set up location type radio buttons
+                const locationTypeRadios = document.querySelectorAll('input[name="location-type"]');
+                locationTypeRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const customFields = document.getElementById('custom-location-fields');
+                    if (this.value === 'custom') {
+                            customFields.style.display = 'block';
+                    } else {
+                        customFields.style.display = 'none';
+                    }
+                });
+            });
+            }
+            
+            // Add click handlers for dashboard tabs
+            const dashboardTabs = document.querySelectorAll('.dashboard-tab');
+            dashboardTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // Remove active class from all tabs
+                    dashboardTabs.forEach(t => t.classList.remove('active'));
+                    
+                    // Add active class to clicked tab
+                    this.classList.add('active');
+                    
+                    // Show the corresponding section
+                    const targetSection = this.getAttribute('data-section');
+                    document.querySelectorAll('.dashboard-section').forEach(section => {
+                        section.style.display = 'none';
+                    });
+                    document.getElementById(targetSection).style.display = 'block';
+                });
+            });
+            
+            // Initial fetch of all data
+            fetchAndUpdateDashboard();
+            
+            // Also specifically fetch shelters to ensure they load
+            setTimeout(fetchAndUpdateShelters, 1000);
+            
+            // Set up automatic refresh every 60 seconds
+            setInterval(fetchAndUpdateDashboard, 60000);
+            
+            console.log('Dashboard initialized successfully');
+        });
+        
+        // Socket.IO event listeners
+        socket.on('connect', () => {
+            console.log('Socket.IO connected successfully');
+            document.getElementById('connection-status').textContent = 'Connected';
+            document.getElementById('connection-status').classList.remove('disconnected');
+            document.getElementById('connection-status').classList.add('connected');
+        });
+        
+        socket.on('disconnect', () => {
+            console.log('Socket.IO disconnected');
+            document.getElementById('connection-status').textContent = 'Disconnected';
+            document.getElementById('connection-status').classList.remove('connected');
+            document.getElementById('connection-status').classList.add('disconnected');
+        });
+        
+        socket.on('new_incident', (data) => {
+            console.log('New incident received:', data);
+            // Show notification
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `<p>🔔 New incident reported: ${data.type} (${data.urgency})</p>`;
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => notification.remove(), 500);
+            }, 5000);
+            
+            // Refresh incident list
+            fetchIncidentsAndUpdate();
+        });
+        
+        socket.on('incident_updated', (data) => {
+            console.log('Incident updated:', data);
+            // Refresh incident list
+            fetchIncidentsAndUpdate();
+        });
+        
+        socket.on('new_sos', (data) => {
+            console.log('New SOS alert received:', data);
+            // Play alert sound
+            if (typeof playAlertSound === 'function') {
+                playAlertSound();
+            }
+            
+            // Show notification
+            const notification = document.createElement('div');
+            notification.className = 'notification urgent';
+            notification.innerHTML = `<p>🆘 URGENT: New SOS alert from ${data.name || 'Anonymous'}</p>`;
+            document.body.appendChild(notification);
+            
+            // Remove notification after 10 seconds (longer for critical alerts)
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => notification.remove(), 10000);
+            }, 10000);
+            
+            // Refresh SOS list
+            fetchSOSAndUpdate();
+        });
+        
+        socket.on('sos_updated', (data) => {
+            console.log('SOS alert updated:', data);
+            // Refresh SOS list
+            fetchSOSAndUpdate();
+        });
+        
+        socket.on('new_broadcast', (data) => {
+            console.log('New broadcast received:', data);
+            // Show notification
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `<p>📢 New emergency broadcast</p>`;
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => notification.remove(), 500);
+            }, 5000);
+            
+            // Refresh broadcast list
+            fetchBroadcastsAndUpdate();
+        });
+        
+        socket.on('new_shelter', (data) => {
+            console.log('New shelter added:', data);
+            // Show notification
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `<p>🏠 New emergency shelter available: ${data.name}</p>`;
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => notification.remove(), 500);
+            }, 5000);
+            
+            // Refresh shelter list
+            fetchAndUpdateShelters();
+        });
+        
+        socket.on('shelter_updated', (data) => {
+            console.log('Shelter updated:', data);
+            // Refresh shelter list
+            fetchAndUpdateShelters();
+        });
+        
+        // Add handler for emergency broadcasts
+        socket.on('emergency_broadcast', (data) => {
+            console.log('Emergency broadcast received:', data);
+            // Show notification
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `<p>📢 Emergency broadcast: ${data.message}</p>`;
+            document.body.appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.classList.add('fade-out');
+                setTimeout(() => notification.remove(), 500);
+            }, 5000);
+            
+            // Refresh broadcast list
+            fetchBroadcastsAndUpdate();
+        });
+        
+        // Fetch and update specific data sections
+        function fetchIncidentsAndUpdate() {
+            fetch(`/api/incidents?status=active&_=${new Date().getTime()}`)
+                .then(response => response.json())
+                .then(incidents => {
+                    console.log(`Fetched ${incidents.length} incidents`);
+                    activeIncidentsCount.textContent = incidents.length;
+                    updateIncidents(incidents.slice(0, 5));
+                })
+                .catch(error => console.error('Error fetching incidents:', error));
+        }
+        
+        function fetchSOSAndUpdate() {
+            fetch(`/api/sos?status=active&_=${new Date().getTime()}`)
+                .then(response => response.json())
+                .then(sosAlerts => {
+                    console.log(`Fetched ${sosAlerts.length} SOS alerts`);
+                    activeSosCount.textContent = sosAlerts.length;
+                    updateSosAlerts(sosAlerts);
+                })
+                .catch(error => console.error('Error fetching SOS alerts:', error));
+        }
+        
+        function fetchBroadcastsAndUpdate() {
+            fetch(`/api/broadcasts?_=${new Date().getTime()}`)
+                .then(response => response.json())
+                .then(broadcastMessages => {
+                    console.log(`Fetched ${broadcastMessages.length} broadcasts`);
+                    updateBroadcasts(broadcastMessages);
+                })
+                .catch(error => console.error('Error fetching broadcasts:', error));
+        }
+        
+        function fetchAndUpdateShelters() {
+            console.log('Fetching shelters data...');
+            fetch(`/api/shelters?_=${new Date().getTime()}`)
+                .then(response => {
+                    console.log('API response status:', response.status, response.statusText);
+                    if (!response.ok) {
+                        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(sheltersList => {
+                    console.log(`Fetched ${sheltersList.length} shelters`);
+                    console.log('Shelter data:', JSON.stringify(sheltersList));
+                    
+                    // Calculate total resources
+                    resourceCount.textContent = calculateTotalResources(sheltersList);
+                    
+                    // Calculate total capacity and occupancy
+                    let totalCapacity = 0;
+                    let totalOccupancy = 0;
+                    
+                    sheltersList.forEach(shelter => {
+                        totalCapacity += parseInt(shelter.capacity) || 0;
+                        totalOccupancy += parseInt(shelter.current_occupancy) || 0;
+                    });
+                    
+                    const remainingCapacity = totalCapacity - totalOccupancy;
+                    document.getElementById('shelter-capacity').textContent = `${remainingCapacity}/${totalCapacity}`;
+                    
+                    // Update the shelter display
+                    updateShelters(sheltersList);
+                })
+                .catch(error => {
+                    console.error('Error fetching shelters:', error);
+                    // Fix the ID to match the actual element ID in the HTML
+                    shelters.innerHTML = '<div class="no-data">Error loading shelters. <button class="btn small" onclick="fetchAndUpdateShelters()">Retry</button></div>';
+                });
+        }
+        
+        // Update incidents section with improved handling
+        function updateIncidents(incidents) {
+            console.log('Updating incidents display with:', incidents.length, 'incidents');
+            
+            if (!incidents || incidents.length === 0) {
+                console.log('No incidents to display');
+                recentIncidents.innerHTML = '<div class="no-data">No active incidents reported.</div>';
+                return;
+            }
+            
+            // Clear existing content
+            recentIncidents.innerHTML = '';
+            
+            // Sort incidents by reported_at date (newest first)
+            incidents.sort((a, b) => {
+                if (!a.reported_at) return 1;
+                if (!b.reported_at) return -1;
+                return new Date(b.reported_at) - new Date(a.reported_at);
+            });
+            
+            // Add each incident to the display with animation
+            incidents.forEach((incident, index) => {
+                console.log(`Adding incident ${index+1}:`, incident.id, incident.type);
+                
+                const statusClass = getStatusClass(incident.status || 'active');
+                
+                const incidentElement = document.createElement('div');
+                incidentElement.className = 'incident-item new-content';
+                incidentElement.innerHTML = `
+                    <div class="incident-info">
+                        <h4>${incident.type || 'Unknown'}</h4>
+                        <p>${getLocationName(incident.latitude, incident.longitude)}</p>
+                        ${incident.reported_at ? 
+                          `<small class="timestamp">Reported: ${formatTimeAgo(incident.reported_at)}</small>` : ''}
+                    </div>
+                    <span class="incident-status ${statusClass}">${incident.status || 'Ongoing'}</span>
+                `;
+                
+                // Add data attributes for potential filtering/sorting
+                incidentElement.dataset.id = incident.id;
+                incidentElement.dataset.type = incident.type || 'unknown';
+                incidentElement.dataset.timestamp = incident.reported_at || '';
+                
+                recentIncidents.appendChild(incidentElement);
+            });
+            
+            console.log('Incidents display updated successfully');
+        }
+        
+        // Helper function to format time as "X minutes/hours ago"
+        function formatTimeAgo(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffSec = Math.round(diffMs / 1000);
+            const diffMin = Math.round(diffSec / 60);
+            const diffHour = Math.round(diffMin / 60);
+            const diffDay = Math.round(diffHour / 24);
+            
+            if (diffSec < 60) return 'just now';
+            if (diffMin < 60) return `${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`;
+            if (diffHour < 24) return `${diffHour} ${diffHour === 1 ? 'hour' : 'hours'} ago`;
+            if (diffDay < 7) return `${diffDay} ${diffDay === 1 ? 'day' : 'days'} ago`;
+            
+            return date.toLocaleDateString();
+        }
+        
+        // Update SOS alerts section
+        function updateSosAlerts(alerts) {
+            activeSos.innerHTML = '';
+            
+            alerts.forEach(alert => {
+                // Get username from user_id (you might need to fetch this separately)
+                getUserName(alert.user_id).then(username => {
+                    const sosElement = document.createElement('div');
+                    sosElement.className = 'sos-item';
+                    sosElement.innerHTML = `
+                        <h4><i class="fas fa-exclamation-circle"></i> ${username}</h4>
+                        <p>${alert.message}</p>
+                        <p class="sos-location"><i class="fas fa-map-marker-alt"></i> ${getLocationName(alert.latitude, alert.longitude)}</p>
+                    `;
+                    
+                    activeSos.appendChild(sosElement);
+                });
+            });
+        }
+        
+        // Update broadcasts section with improved handling
+        function updateBroadcasts(broadcastMessages) {
+            console.log('Updating broadcasts display with:', broadcastMessages.length, 'broadcasts');
+            
+            if (!broadcastMessages || broadcastMessages.length === 0) {
+                console.log('No broadcasts to display');
+                broadcasts.innerHTML = '<div class="no-data">No emergency broadcasts.</div>';
+                return;
+            }
+            
+            // Clear existing content
+            broadcasts.innerHTML = '';
+            
+            // Add each broadcast to the display with animation
+            broadcastMessages.forEach((broadcast, index) => {
+                const broadcastElement = document.createElement('div');
+                broadcastElement.className = 'broadcast-message new-content';
+                
+                // Handle both string messages and object format
+                const message = typeof broadcast === 'string' 
+                    ? broadcast 
+                    : broadcast.message || 'No message content';
+                    
+                // Add emoji prefix based on message content
+                let emoji = '📢';
+                if (message.toLowerCase().includes('warning')) emoji = '⚠️';
+                if (message.toLowerCase().includes('danger')) emoji = '🚨';
+                if (message.toLowerCase().includes('evacuat')) emoji = '🚨';
+                if (message.toLowerCase().includes('shelter')) emoji = '🏠';
+                if (message.toLowerCase().includes('medical')) emoji = '🚑';
+                if (message.toLowerCase().includes('food')) emoji = '🍲';
+                if (message.toLowerCase().includes('water')) emoji = '💧';
+                
+                broadcastElement.textContent = `${emoji} ${message}`;
+                
+                // Add timestamp if available
+                if (broadcast.created_at) {
+                    const timestamp = document.createElement('small');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = formatTimeAgo(broadcast.created_at);
+                    broadcastElement.appendChild(timestamp);
+                }
+                
+                broadcasts.appendChild(broadcastElement);
+            });
+            
+            console.log('Broadcasts display updated successfully');
+        }
+        
+        // Update resources section
+        function updateResources(resourceList) {
+            shelters.innerHTML = '';
+            
+            resourceList.forEach(resource => {
+                const resourceElement = document.createElement('div');
+                resourceElement.className = 'resource-item';
+                resourceElement.innerHTML = `
+                    <span class="resource-type">${resource.name}</span>
+                    <span class="resource-quantity">${resource.capacity - resource.current_load} available</span>
+                `;
+                
+                shelters.appendChild(resourceElement);
+            });
+        }
+        
+        // Helper function to get CSS class based on status
+        function getStatusClass(status) {
+            switch(status.toLowerCase()) {
+                case 'active':
+                case 'ongoing':
+                    return 'status-ongoing';
+                case 'cleared':
+                case 'resolved':
+                    return 'status-cleared';
+                case 'expected':
+                    return 'status-expected';
+                default:
+                    return '';
+            }
+        }
+        
+        // Helper function to get location name from coordinates
+        // In a real app, you might use reverse geocoding API
+        function getLocationName(lat, lng) {
+            // This is a placeholder. In a real application, you would use
+            // a reverse geocoding service to get actual location names
+            // For now, we'll just return coordinates
+            return `Location (${parseFloat(lat).toFixed(2)}, ${parseFloat(lng).toFixed(2)})`;
+        }
+        
+        // Helper function to capitalize first letter of a string
+        function capitalize(str) {
+            if (!str) return '';
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+        
+        // Helper function to get user name from user ID
+        async function getUserName(userId) {
+            // In a real app, this would be an API call
+            // For now, we'll use a placeholder
+            try {
+                const response = await fetch(`/api/users/${userId}`);
+                if (response.ok) {
+                    const userData = await response.json();
+                    return userData.username;
+                }
+            } catch (error) {
+                console.error("Error fetching username:", error);
+            }
+            return "Unknown User";
+        }
+        
+        // Function to send broadcast to server
+        function sendBroadcast(broadcastData) {
+            fetch('/api/broadcast', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(broadcastData)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Show success notification instead of alert
+                    const notification = document.createElement('div');
+                    notification.className = 'notification';
+                    notification.innerHTML = `<p>Emergency broadcast sent successfully!</p>`;
+                    document.body.appendChild(notification);
+                    
+                    // Remove notification after 3 seconds
+                    setTimeout(() => {
+                        notification.classList.add('fade-out');
+                        setTimeout(() => notification.remove(), 500);
+                    }, 3000);
+                    
+                    // Reset form and hide custom fields
+                    document.getElementById('broadcast-form').reset();
+                    document.getElementById('custom-location-fields').style.display = 'none';
+                    
+                    // Update the broadcasts display
+                    fetch('/api/broadcasts')
+                        .then(response => response.json())
+                        .then(broadcasts => {
+                            if (broadcasts && broadcasts.length) updateBroadcasts(broadcasts);
+                        });
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending broadcast:', error);
+                
+                // Show error notification
+                const notification = document.createElement('div');
+                notification.className = 'notification error';
+                notification.innerHTML = `<p>Error sending broadcast: ${error.message}</p>`;
+                document.body.appendChild(notification);
+                
+                // Remove notification after 4 seconds
+                setTimeout(() => {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => notification.remove(), 500);
+                }, 4000);
+            });
+        }
+        
+        // Function to submit a broadcast with given parameters
+        function submitBroadcast(message, radius, latitude, longitude) {
+            console.log('Submitting broadcast:', { message, radius, latitude, longitude });
+            
+            if (!message) {
+                alert('Please enter a message to broadcast');
+                return;
+            }
+            
+                const broadcastData = {
+                    message: message,
+                radius: radius || 5,
+                latitude: parseFloat(latitude) || 0,
+                longitude: parseFloat(longitude) || 0
+            };
+            
+            // Show sending indicator
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `<p><span class="loading-spinner"></span> Sending emergency broadcast...</p>`;
+            document.body.appendChild(notification);
+            
+            // Send the broadcast
+                            sendBroadcast(broadcastData);
+            
+            // Remove the sending notification after 2 seconds
+            setTimeout(() => notification.remove(), 2000);
+        }
+        
+        // Fetch data via API and update dashboard
+        function fetchAndUpdateDashboard() {
+            console.log('Fetching all dashboard data...');
+            
+            // Show loading state on refresh button if it exists
+            const refreshButton = document.getElementById('refresh-dashboard');
+            if (refreshButton) {
+                refreshButton.innerHTML = '<span class="loading-spinner"></span> Refreshing...';
+                refreshButton.disabled = true;
+            }
+            
+            // Add timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            
+            // Use Promise.all to fetch all data in parallel
+            Promise.all([
+                fetch(`/api/incidents?status=active&_=${timestamp}`).then(response => response.json()),
+                fetch(`/api/sos?status=active&_=${timestamp}`).then(response => response.json()),
+                fetch(`/api/broadcasts?_=${timestamp}`).then(response => response.json()).catch(() => []),
+                fetch(`/api/shelters?_=${timestamp}`).then(response => response.json()).catch(() => [])
+            ])
+            .then(([incidents, sosAlerts, broadcasts, sheltersList]) => {
+                console.log('All dashboard data fetched successfully:', {
+                    incidents: incidents.length,
+                    sos: sosAlerts.length,
+                    broadcasts: broadcasts ? broadcasts.length : 0,
+                    shelters: sheltersList ? sheltersList.length : 0
+                });
+                
+                // Update counts
+                activeIncidentsCount.textContent = incidents.length;
+                activeSosCount.textContent = sosAlerts.length;
+                resourceCount.textContent = calculateTotalResources(sheltersList);
+                
+                // Update data displays
+                updateIncidents(incidents.slice(0, 5)); // Show only most recent 5
+                updateSosAlerts(sosAlerts);
+                if (broadcasts && broadcasts.length) updateBroadcasts(broadcasts);
+                if (sheltersList && sheltersList.length) updateShelters(sheltersList);
+                
+                // Restore refresh button
+                if (refreshButton) {
+                    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
+                    refreshButton.disabled = false;
+                }
+                
+                // Show success message
+                const notification = document.createElement('div');
+                notification.className = 'notification';
+                notification.innerHTML = `<p>Dashboard updated with latest data</p>`;
+                document.body.appendChild(notification);
+                
+                // Remove notification after 2 seconds
+                setTimeout(() => {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => notification.remove(), 500);
+                }, 2000);
+            })
+            .catch(error => {
+                console.error('Error fetching dashboard data:', error);
+                
+                // Restore refresh button even on error
+                if (refreshButton) {
+                    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
+                    refreshButton.disabled = false;
+                }
+                
+                // Show error notification
+                const notification = document.createElement('div');
+                notification.className = 'notification error';
+                notification.innerHTML = `<p>Error updating dashboard. Please try again.</p>`;
+                document.body.appendChild(notification);
+                
+                // Remove notification after 3 seconds
+                setTimeout(() => {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => notification.remove(), 500);
+                }, 3000);
+            });
+        }
+        
+        // Function to calculate total resources from shelters
+        function calculateTotalResources(sheltersList) {
+            if (!sheltersList || !sheltersList.length) return 0;
+            
+            let totalCount = 0;
+            sheltersList.forEach(shelter => {
+                if (shelter.resources && shelter.resources.length) {
+                    shelter.resources.forEach(resource => {
+                        totalCount += parseInt(resource.quantity) || 0;
+                    });
+                }
+            });
+            
+            return totalCount;
+        }
+        
+        // Function to update shelters display
+        function updateShelters(sheltersList, singleUpdate = false, updateIndex = -1) {
+            console.log('Updating shelters display with:', sheltersList.length, 'shelters');
+            
+            if (!sheltersList || sheltersList.length === 0) {
+                if (!singleUpdate) {
+                    console.log('No shelters to display');
+                    shelters.innerHTML = '<div class="no-data">No shelters available.</div>';
+                }
+                        return;
+                    }
+            
+            // Clear existing content if not a single update
+            if (!singleUpdate) {
+                shelters.innerHTML = '';
+            }
+            
+            // Add each shelter to the display with animation
+            sheltersList.forEach((shelter, index) => {
+                console.log(`Adding shelter ${index+1}:`, shelter.id, shelter.name);
+                
+                const shelterElement = document.createElement('div');
+                shelterElement.className = 'shelter-item new-content';
+                
+                // Create resource tags HTML
+                let resourceTagsHtml = '<p class="no-resources">No resources available</p>';
+                if (shelter.resources && shelter.resources.length > 0) {
+                    resourceTagsHtml = shelter.resources.map(resource => 
+                        `<span class="resource-tag">${resource.name} <span class="quantity">(${resource.quantity})</span></span>`
+                    ).join('');
+                }
+                
+                // Calculate remaining capacity
+                const currentOccupancy = shelter.current_occupancy || 0;
+                const remainingCapacity = shelter.capacity - currentOccupancy;
+                const capacityPercentage = Math.round((currentOccupancy / shelter.capacity) * 100) || 0;
+                
+                // Determine capacity status color
+                let capacityStatusClass = 'text-success';
+                if (capacityPercentage > 75) {
+                    capacityStatusClass = 'text-danger';
+                } else if (capacityPercentage > 50) {
+                    capacityStatusClass = 'text-warning';
+                }
+                
+                shelterElement.innerHTML = `
+                    <div class="shelter-header">
+                        <h4 class="shelter-name">${shelter.name}</h4>
+                        <span class="shelter-status status-${shelter.status || 'operational'}">${capitalize(shelter.status || 'operational')}</span>
+                    </div>
+                    <p class="shelter-details">${shelter.description || 'No description provided'}</p>
+                    <p class="shelter-contact"><strong>Contact:</strong> ${shelter.contact || 'No contact information'}</p>
+                    <p class="shelter-capacity">
+                        <strong>Capacity:</strong> ${shelter.capacity} people
+                        <span style="margin-left: 10px; color: #555;">
+                            <strong class="${capacityStatusClass}" style="font-weight: bold;">
+                                ${remainingCapacity} spaces remaining
+                            </strong>
+                            <span style="font-size: 11px; color: #777;">
+                                (${capacityPercentage}% occupied)
+                            </span>
+                        </span>
+                    </p>
+                    <div class="occupancy-controls" style="margin: 10px 0; padding: 8px; background: #f9f9f9; border-radius: 4px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <span><strong>Current Occupancy:</strong> ${currentOccupancy} people</span>
+                            <div class="occupancy-buttons">
+                                <button 
+                                    class="btn small" 
+                                    style="margin-right: 5px; background: #e74c3c; color: white;"
+                                    onclick="updateShelterOccupancy(${shelter.id}, ${currentOccupancy+1}, ${shelter.capacity})">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button 
+                                    class="btn small" 
+                                    style="background: #3498db; color: white;"
+                                    onclick="updateShelterOccupancy(${shelter.id}, ${Math.max(0, currentOccupancy-1)}, ${shelter.capacity})">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <button 
+                                    class="btn small" 
+                                    style="margin-left: 5px; background: #7f8c8d; color: white;"
+                                    onclick="updateShelterOccupancy(${shelter.id}, 0, ${shelter.capacity})">
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+                        <div class="progress-bar" style="margin-top: 5px; height: 8px; width: 100%; background: #ecf0f1; border-radius: 4px; overflow: hidden;">
+                            <div style="height: 100%; width: ${capacityPercentage}%; background: ${
+                                capacityPercentage > 75 ? '#e74c3c' : 
+                                capacityPercentage > 50 ? '#f39c12' : 
+                                '#2ecc71'
+                            };"></div>
+                        </div>
+                    </div>
+                    <div class="shelter-resources">
+                        <strong>Available Resources:</strong>
+                        <div class="resources-tags">
+                            ${resourceTagsHtml}
+                        </div>
+                    </div>
+                    <p class="shelter-location">
+                        <i class="fas fa-map-marker-alt"></i> 
+                        ${getLocationName(shelter.latitude, shelter.longitude)}
+                    </p>
+                `;
+                
+                if (singleUpdate && updateIndex >= 0) {
+                    // Replace the shelter at updateIndex with this new one
+                    const currentShelterElements = document.querySelectorAll('.shelter-item');
+                    if (updateIndex < currentShelterElements.length) {
+                        currentShelterElements[updateIndex].replaceWith(shelterElement);
+                    }
+                } else {
+                    shelters.appendChild(shelterElement);
+                }
+            });
+            
+            console.log('Shelters display updated successfully');
+        }
+        
+        // Function to update shelter occupancy
+        function updateShelterOccupancy(shelterId, newOccupancy, capacity) {
+            if (newOccupancy > capacity) {
+                // Show error notification
+                const notification = document.createElement('div');
+                notification.className = 'notification error';
+                notification.innerHTML = `<p>Error: Occupancy cannot exceed capacity (${capacity})</p>`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => notification.remove(), 500);
+                }, 3000);
+                
+                return;
+            }
+            
+            // Show loading notification
+            const loadingNotification = document.createElement('div');
+            loadingNotification.className = 'notification';
+            loadingNotification.innerHTML = `<p><span class="loading-spinner"></span> Updating shelter occupancy...</p>`;
+            document.body.appendChild(loadingNotification);
+            
+            // Send update to server
+            fetch(`/api/shelters/${shelterId}/occupancy`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    occupancy: newOccupancy
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Remove loading notification
+                loadingNotification.remove();
+                
+                if (data.success) {
+                    // Show success notification
+                    const notification = document.createElement('div');
+                    notification.className = 'notification';
+                    notification.innerHTML = `<p>Shelter occupancy updated successfully</p>`;
+                    document.body.appendChild(notification);
+                    
+                    setTimeout(() => {
+                        notification.classList.add('fade-out');
+                        setTimeout(() => notification.remove(), 500);
+                    }, 2000);
+                    
+                    // Update the shelter in the UI
+                    const updatedShelter = data.shelter;
+                    
+                    // Find and update the specific shelter in the UI
+                    // This avoids having to refresh all shelters
+                    const shelterElements = document.querySelectorAll('.shelter-item');
+                    shelterElements.forEach(el => {
+                        if (el.querySelector('button[onclick*="' + shelterId + '"]')) {
+                            // Found the right shelter, now update just this one
+                            const index = Array.from(shelterElements).indexOf(el);
+                            
+                            // Create a new array with just this shelter updated
+                            const updatedSheltersList = Array.from(document.querySelectorAll('.shelter-item')).map((_, i) => {
+                                if (i === index) {
+                                    return updatedShelter;
+                                }
+                                return null; // We don't need the other shelters
+                            }).filter(s => s !== null);
+                            
+                            // Replace just this one shelter element
+                            updateShelters(updatedSheltersList, true, index);
+                        }
+                    });
+                } else {
+                    throw new Error(data.error || 'Unknown error');
+                }
+            })
+            .catch(error => {
+                // Remove loading notification
+                loadingNotification.remove();
+                
+                console.error('Error updating shelter occupancy:', error);
+                
+                // Show error notification
+                const notification = document.createElement('div');
+                notification.className = 'notification error';
+                notification.innerHTML = `<p>Error: ${error.message}</p>`;
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.classList.add('fade-out');
+                    setTimeout(() => notification.remove(), 500);
+                }, 3000);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -54,11 +54,11 @@ document.addEventListener('DOMContentLoaded', function() {
             iconAnchor: [19, 38],
             popupAnchor: [0, -38]
         }),
-        shelter: L.icon({
-            iconUrl: '/static/img/shelter.png',
-            iconSize: [32, 32],
-            iconAnchor: [16, 32],
-            popupAnchor: [0, -32]
+        shelter: L.divIcon({
+            className: 'custom-div-icon',
+            html: '<div class="marker-pin shelter-pin"><i class="fas fa-home"></i></div>',
+            iconSize: [30, 42],
+            iconAnchor: [15, 42]
         }),
         hospital: L.icon({
             iconUrl: '/static/img/hospital.png',
@@ -97,8 +97,14 @@ document.addEventListener('DOMContentLoaded', function() {
         incidents: L.layerGroup().addTo(map),
         resources: L.layerGroup().addTo(map),
         sos: L.layerGroup().addTo(map),
-        broadcasts: L.layerGroup().addTo(map)
+        broadcasts: L.layerGroup().addTo(map),
+        shelters: L.layerGroup().addTo(map)
     };
+    
+    // Store incident markers for easy reference
+    const incidentMarkers = new Map();
+    // Store shelter markers for easy reference
+    const shelterMarkers = new Map();
     
     // Variables for report form
     let selectedLocation = null;
@@ -134,15 +140,18 @@ document.addEventListener('DOMContentLoaded', function() {
             // Load incidents and resources near the user
             loadIncidents();
             loadResources();
+            loadShelters();
         }, function() {
             // If geolocation fails, use default location
             loadIncidents();
             loadResources();
+            loadShelters();
         });
     } else {
         // If geolocation not supported, use default location
         loadIncidents();
         loadResources();
+        loadShelters();
     }
     
     // Load incidents from API
@@ -174,9 +183,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .replace(/{verification_count}/g, incident.verification_count || 0)
             .replace(/{id}/g, incident.id)
             .replace(/{latitude}/g, lat)
-            .replace(/{longitude}/g, lng);
+            .replace(/{longitude}/g, lng)
+            .replace(/{image_path}/g, incident.image_path ? '/' + incident.image_path : '')
+            .replace(/{image_display}/g, incident.image_path ? 'block' : 'none');
         
         marker.bindPopup(popupContent);
+        
+        // Store the marker in a Map to access it later for updates
+        incidentMarkers.set(incident.id, marker);
         
         // Add pulse effect for high urgency incidents
         if (incident.urgency === 'high') {
@@ -223,6 +237,67 @@ document.addEventListener('DOMContentLoaded', function() {
         marker.bindPopup(popupContent);
     }
     
+    // Load shelters from API
+    function loadShelters() {
+        fetch('/api/shelters')
+            .then(response => response.json())
+            .then(shelters => {
+                layers.shelters.clearLayers();
+                shelters.forEach(addShelterToMap);
+            })
+            .catch(error => console.error('Error loading shelters:', error));
+    }
+    
+    // Add shelter to map
+    function addShelterToMap(shelter) {
+        const lat = parseFloat(shelter.latitude);
+        const lng = parseFloat(shelter.longitude);
+        const icon = icons.shelter;
+        
+        const marker = L.marker([lat, lng], { icon }).addTo(layers.shelters);
+        
+        // Create resource tags HTML
+        let resourceTagsHtml = '<p class="no-resources">No resources available</p>';
+        if (shelter.resources && shelter.resources.length > 0) {
+            resourceTagsHtml = shelter.resources.map(resource => 
+                `<span class="resource-tag">${resource.name} (${resource.quantity})</span>`
+            ).join('');
+        }
+        
+        // Create popup content
+        const template = document.getElementById('shelter-popup-template').innerHTML;
+        const popupContent = template
+            .replace(/{name}/g, shelter.name)
+            .replace(/{description}/g, shelter.description || 'No description provided')
+            .replace(/{capacity}/g, shelter.capacity || 'Unknown')
+            .replace(/{contact}/g, shelter.contact || 'No contact information')
+            .replace(/{status}/g, shelter.status || 'operational')
+            .replace(/{latitude}/g, lat)
+            .replace(/{longitude}/g, lng)
+            .replace(/{resources_tags}/g, resourceTagsHtml);
+        
+        marker.bindPopup(popupContent);
+        
+        // Store the marker in a Map to access it later for updates
+        shelterMarkers.set(shelter.id, marker);
+        
+        // Add visual indicator for shelter status
+        const statusColors = {
+            'operational': '#2ecc71',
+            'limited': '#f39c12',
+            'full': '#e74c3c'
+        };
+        
+        const color = statusColors[shelter.status] || '#2ecc71';
+        
+        L.circle([lat, lng], {
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.2,
+            radius: 100
+        }).addTo(layers.shelters);
+    }
+    
     // Filter button event
     document.getElementById('apply-filters').addEventListener('click', function() {
         const incidentType = document.getElementById('incident-type').value;
@@ -264,11 +339,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Map click event for selecting location
     map.on('click', function(e) {
         selectedLocation = e.latlng;
-        document.getElementById('selected-location').textContent = 
-            `Lat: ${selectedLocation.lat.toFixed(6)}, Lng: ${selectedLocation.lng.toFixed(6)}`;
+        const locationText = `Lat: ${selectedLocation.lat.toFixed(6)}, Lng: ${selectedLocation.lng.toFixed(6)}`;
         
-        // Enable submit button
+        // Update both location displays
+        document.getElementById('selected-location').textContent = locationText;
+        document.getElementById('shelter-location').textContent = locationText;
+        
+        // Enable both submit buttons
         document.getElementById('submit-report').removeAttribute('disabled');
+        document.getElementById('submit-shelter').removeAttribute('disabled');
     });
     
     // Audio recording
@@ -333,6 +412,12 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('longitude', selectedLocation.lng);
         formData.append('urgency', document.getElementById('report-urgency').value);
         
+        // Add image file if selected
+        const imageInput = document.getElementById('report-image');
+        if (imageInput && imageInput.files.length > 0) {
+            formData.append('image', imageInput.files[0]);
+        }
+        
         if (audioBlob) {
             formData.append('audio', audioBlob, 'report-audio.webm');
         }
@@ -355,11 +440,100 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('selected-location').textContent = 'No location selected';
             document.getElementById('submit-report').setAttribute('disabled', true);
             
+            // Show confirmation dialog
+            if (typeof showReportConfirmation === 'function') {
+                showReportConfirmation(data);
+            } else {
+                // Fallback if the function isn't defined
             alert('Incident reported successfully!');
+            }
         })
         .catch(error => {
             console.error('Error submitting report:', error);
             alert('Failed to submit report. Please try again.');
+        });
+    });
+    
+    // Add shelter submission handler
+    document.getElementById('shelter-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!selectedLocation) {
+            alert('Please select a location on the map.');
+            return;
+        }
+        
+        const shelterData = {
+            name: document.getElementById('shelter-name').value,
+            description: document.getElementById('shelter-description').value,
+            capacity: document.getElementById('shelter-capacity').value,
+            contact: document.getElementById('shelter-contact').value,
+            status: document.getElementById('shelter-status').value,
+            latitude: selectedLocation.lat,
+            longitude: selectedLocation.lng,
+            resources: window.shelterResources || [] // Include resources
+        };
+        
+        // Send shelter data to server
+        fetch('/api/shelters', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(shelterData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Shelter added successfully:', data);
+            
+            // Add the shelter to the map
+            addShelterToMap({
+                id: data.id || Date.now(), // Use returned ID or timestamp as fallback
+                ...shelterData
+            });
+            
+            // Reset form and selected location
+            document.getElementById('shelter-form').reset();
+            document.getElementById('resources-list').innerHTML = ''; // Clear resources list
+            window.shelterResources = []; // Reset resources array
+            selectedLocation = null;
+            document.getElementById('shelter-location').textContent = 'Click on map to select location';
+            document.getElementById('submit-shelter').setAttribute('disabled', true);
+            
+            // Show confirmation card instead of alert
+            const shelterConfirmation = document.getElementById('shelter-confirmation');
+            const shelterSummaryList = document.getElementById('shelter-summary-list');
+            
+            // Clear previous summary
+            shelterSummaryList.innerHTML = '';
+            
+            // Add shelter details to summary
+            const nameItem = document.createElement('li');
+            nameItem.innerHTML = `<strong>Name:</strong> ${shelterData.name}`;
+            shelterSummaryList.appendChild(nameItem);
+            
+            const capacityItem = document.createElement('li');
+            capacityItem.innerHTML = `<strong>Capacity:</strong> ${shelterData.capacity}`;
+            shelterSummaryList.appendChild(capacityItem);
+            
+            const statusItem = document.createElement('li');
+            statusItem.innerHTML = `<strong>Status:</strong> ${shelterData.status.charAt(0).toUpperCase() + shelterData.status.slice(1)}`;
+            shelterSummaryList.appendChild(statusItem);
+            
+            const locationItem = document.createElement('li');
+            locationItem.innerHTML = `<strong>Location:</strong> Lat: ${parseFloat(shelterData.latitude).toFixed(6)}, Lng: ${parseFloat(shelterData.longitude).toFixed(6)}`;
+            shelterSummaryList.appendChild(locationItem);
+            
+            const idItem = document.createElement('li');
+            idItem.innerHTML = `<strong>ID:</strong> ${data.id || 'pending'}`;
+            shelterSummaryList.appendChild(idItem);
+            
+            // Show the confirmation card
+            shelterConfirmation.style.display = 'flex';
+        })
+        .catch(error => {
+            console.error('Error adding shelter:', error);
+            alert('Failed to add shelter. Please try again.');
         });
     });
     
@@ -1073,4 +1247,176 @@ document.addEventListener('DOMContentLoaded', function() {
                 updateStatistics();
             }
         });
+    
+    // Listen for map popup opens to attach direction button handlers
+    map.on('popupopen', function(e) {
+        // Check if popup has direction buttons and attach click handlers
+        const directionButtons = e.popup._contentNode.querySelectorAll('.directions-button');
+        
+        directionButtons.forEach(button => {
+            // Remove existing event listeners to prevent duplicates
+            button.replaceWith(button.cloneNode(true));
+            
+            // Get the new button (after cloning)
+            const newButton = e.popup._contentNode.querySelector(`[data-lat="${button.getAttribute('data-lat')}"][data-lng="${button.getAttribute('data-lng')}"]`);
+            
+            if (newButton) {
+                newButton.addEventListener('click', function() {
+                    const targetLat = parseFloat(this.getAttribute('data-lat'));
+                    const targetLng = parseFloat(this.getAttribute('data-lng'));
+                    
+                    if (isNaN(targetLat) || isNaN(targetLng)) {
+                        console.error('Invalid coordinates for directions');
+                        return;
+                    }
+                    
+                    console.log(`Getting directions to: ${targetLat.toFixed(6)}, ${targetLng.toFixed(6)}`);
+                    
+                    // Show loading state
+                    this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                    
+                    // Get user's current location
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            position => {
+                                const userLat = position.coords.latitude;
+                                const userLng = position.coords.longitude;
+                                
+                                // Create directions URL for Google Maps
+                                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${targetLat},${targetLng}&travelmode=driving`;
+                                
+                                // Open in a new tab
+                                window.open(googleMapsUrl, '_blank');
+                                
+                                // Restore button
+                                this.innerHTML = '<i class="fas fa-directions"></i> Directions';
+                            },
+                            error => {
+                                console.error('Error getting user location:', error);
+                                
+                                // Still provide directions but without origin
+                                const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${targetLat},${targetLng}&travelmode=driving`;
+                                window.open(googleMapsUrl, '_blank');
+                                
+                                // Restore button
+                                this.innerHTML = '<i class="fas fa-directions"></i> Directions';
+                            }
+                        );
+                    } else {
+                        // Fallback if geolocation is not supported
+                        const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${targetLat},${targetLng}`;
+                        window.open(googleMapsUrl, '_blank');
+                        
+                        // Restore button
+                        this.innerHTML = '<i class="fas fa-directions"></i> Directions';
+                    }
+                });
+            }
+        });
     });
+    
+    // Socket.IO event listener for incident verification updates
+    socket.on('incident_verified', function(data) {
+        console.log('Received incident verification update:', data);
+        
+        // Get the marker for this incident
+        const marker = incidentMarkers.get(data.incident_id);
+        if (marker) {
+            // Get current popup content
+            const popupContent = marker.getPopup().getContent();
+            
+            // Update verification count in popup content
+            const updatedContent = popupContent.replace(
+                /Verified by:<\/strong> \d+ users/,
+                `Verified by:</strong> ${data.verification_count} users`
+            );
+            
+            // Update the popup content
+            marker.getPopup().setContent(updatedContent);
+            
+            // If popup is open, update it
+            if (marker.isPopupOpen()) {
+                marker.getPopup().update();
+            }
+        }
+    });
+
+    // Resource functionality for shelter form
+    setupResourceInputs();
+});
+
+// Setup resource input functionality
+function setupResourceInputs() {
+    const resourceInputs = document.querySelector('.resource-inputs');
+    const resourcesList = document.getElementById('resources-list');
+    const addResourceBtn = document.querySelector('.add-resource-btn');
+    const nameInput = document.querySelector('.resource-name');
+    const quantityInput = document.querySelector('.resource-quantity');
+    
+    // Store added resources
+    window.shelterResources = [];
+    
+    // Add resource function
+    function addResourceFromInputs() {
+        const name = nameInput.value.trim();
+        const quantity = parseInt(quantityInput.value);
+        
+        if (name && quantity > 0) {
+            // Add to resources list
+            addResourceToList(name, quantity);
+            
+            // Clear inputs
+            nameInput.value = '';
+            quantityInput.value = '1';
+            nameInput.focus();
+        }
+    }
+    
+    // Add resource button click handler
+    addResourceBtn.addEventListener('click', addResourceFromInputs);
+    
+    // Add resource on enter key in inputs
+    nameInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Prevent form submission
+            addResourceFromInputs();
+        }
+    });
+    
+    quantityInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Prevent form submission
+            addResourceFromInputs();
+        }
+    });
+    
+    // Function to add resource to the list
+    function addResourceToList(name, quantity) {
+        // Add to our resources array
+        const resourceId = Date.now();
+        window.shelterResources.push({
+            id: resourceId,
+            name: name,
+            quantity: quantity
+        });
+        
+        // Create tag element
+        const tag = document.createElement('span');
+        tag.className = 'resource-tag';
+        tag.innerHTML = `${name} (${quantity}) <i class="fas fa-times remove-resource" data-id="${resourceId}"></i>`;
+        
+        // Add to DOM
+        resourcesList.appendChild(tag);
+        
+        // Add remove handler
+        tag.querySelector('.remove-resource').addEventListener('click', function() {
+            const id = parseInt(this.getAttribute('data-id'));
+            
+            // Remove from array
+            window.shelterResources = window.shelterResources.filter(r => r.id !== id);
+            
+            // Remove from DOM
+            tag.remove();
+        });
+    }
+}
