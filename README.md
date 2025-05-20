@@ -1,4 +1,4 @@
-# 🌍 Disaster-Management-System
+# 🌍 ResQNet 
 
 ## 📌 Overview  
 The **Disaster Management System** is a web-based platform that provides **real-time disaster response, resource tracking, and emergency communication tools**. The system is designed to help affected individuals, government agencies, and NGOs coordinate relief efforts effectively.
